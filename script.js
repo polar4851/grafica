@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let state = {
         transactions: []
     };
-    
+
     let chart;
     let transactionType = 'entrada';
 
@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const chartContainer = document.getElementById('chart-container');
     const modal = document.getElementById('form-modal');
     const form = document.getElementById('transaction-form');
-    
+
     // Botões
     const addReceitaBtn = document.getElementById('add-receita-btn');
     const addDespesaBtn = document.getElementById('add-despesa-btn');
@@ -35,12 +35,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderKPIs() {
         const { transactions } = state;
         const monthlyTx = transactions.filter(t => new Date(t.date).getMonth() === new Date().getMonth());
-        
+
         const receita = monthlyTx.filter(t => t.type === 'entrada').reduce((sum, t) => sum + t.amount, 0);
         const despesa = monthlyTx.filter(t => t.type === 'saida').reduce((sum, t) => sum + t.amount, 0);
         const resultado = receita - despesa;
         const saldoTotal = transactions.reduce((sum, t) => sum + (t.type === 'entrada' ? t.amount : -t.amount), 0);
-        
+
         kpiContainer.innerHTML = `
             <div class="kpi-card"><h4>Receita do Mês</h4><p class="positive">${formatCurrency(receita)}</p></div>
             <div class="kpi-card"><h4>Despesa do Mês</h4><p class="negative">${formatCurrency(despesa)}</p></div>
@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTransactionList() {
         transactionsList.innerHTML = '';
         const recentTransactions = [...state.transactions].reverse().slice(0, 5);
-        
+
         if (recentTransactions.length === 0) {
             transactionsList.innerHTML = `<p style="color: var(--text-secondary); text-align: center;">Nenhum lançamento ainda.</p>`;
             return;
@@ -75,85 +75,75 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * LÓGICA DO GRÁFICO TOTALMENTE REFEITA PARA FUNCIONAMENTO CORRETO
+     * GRÁFICO DE BOLINHAS (SCATTER CHART)
      */
     function renderChart() {
         const { transactions } = state;
         const today = new Date();
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
         const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-        const labels = Array.from({length: daysInMonth}, (_, i) => `Dia ${i + 1}`);
-        
+        const labels = Array.from({length: daysInMonth}, (_, i) => i + 1);
+
         const saldoInicialDoMes = transactions
             .filter(t => new Date(t.date) < startOfMonth)
             .reduce((sum, t) => sum + (t.type === 'entrada' ? t.amount : -t.amount), 0);
-            
-        const dailyNets = Array(daysInMonth).fill(0);
-        transactions
-            .filter(t => new Date(t.date).getMonth() === today.getMonth() && new Date(t.date).getFullYear() === today.getFullYear())
-            .forEach(t => {
-                const day = new Date(t.date).getDate() - 1;
-                dailyNets[day] += (t.type === 'entrada' ? t.amount : -t.amount);
-            });
-            
-        const seriesData = [];
+
+        const dailyBalances = [];
         let saldoAcumulado = saldoInicialDoMes;
-        for(let i = 0; i < daysInMonth; i++) {
-            saldoAcumulado += dailyNets[i];
-            seriesData.push(saldoAcumulado);
+        for (let i = 1; i <= daysInMonth; i++) {
+            const dailyTransactions = transactions.filter(t =>
+                new Date(t.date).getMonth() === today.getMonth() &&
+                new Date(t.date).getFullYear() === today.getFullYear() &&
+                new Date(t.date).getDate() === i
+            );
+            const dailyNet = dailyTransactions.reduce((sum, t) => sum + (t.type === 'entrada' ? t.amount : -t.amount), 0);
+            saldoAcumulado += dailyNet;
+            dailyBalances.push({ x: i, y: saldoAcumulado });
         }
 
-        // **INÍCIO DA CORREÇÃO DE ESCALA DO GRÁFICO**
-        let yMin, yMax;
-
-        if (seriesData.length > 0) {
-            const minVal = Math.min(...seriesData);
-            const maxVal = Math.max(...seriesData);
-            const range = maxVal - minVal;
-
-            // Adiciona uma margem de 15% acima e abaixo, ou um valor fixo se a variação for pequena
-            const padding = range * 0.15 || 100; 
-            yMin = minVal - padding;
-            yMax = maxVal + padding;
-        } else {
-            // Valores padrão se não houver dados
-            yMin = 0;
-            yMax = 1000;
-        }
-        // **FIM DA CORREÇÃO DE ESCALA**
+        let yMin = Math.min(...dailyBalances.map(p => p.y), saldoInicialDoMes);
+        let yMax = Math.max(...dailyBalances.map(p => p.y), saldoInicialDoMes);
+        const range = yMax - yMin;
+        const padding = range * 0.15 || 100;
+        yMin -= padding;
+        yMax += padding;
 
         const options = {
-            series: [{ name: 'Saldo em Caixa', data: seriesData }],
-            chart: { type: 'area', height: '100%', toolbar: { show: false }, background: 'transparent' },
+            series: [{
+                name: 'Saldo em Caixa',
+                data: dailyBalances
+            }],
+            chart: { type: 'scatter', height: '100%', toolbar: { show: false }, background: 'transparent' },
             dataLabels: { enabled: false },
-            stroke: { curve: 'smooth', width: 3, colors: [ '#8b5cf6' ] },
-            xaxis: { categories: labels, labels: { style: { colors: '#8b949e' } }, axisBorder: { show: false }, axisTicks: { show: false } },
+            stroke: { colors: ['#8b5cf6'] },
+            xaxis: {
+                type: 'numeric',
+                min: 1,
+                max: daysInMonth,
+                tickAmount: daysInMonth,
+                labels: { style: { colors: '#8b949e' } },
+                axisBorder: { show: false },
+                axisTicks: { show: false }
+            },
             yaxis: {
-                min: yMin, // Define o mínimo do eixo Y
-                max: yMax, // Define o máximo do eixo Y
+                min: yMin,
+                max: yMax,
                 labels: {
                     style: { colors: '#8b949e' },
                     formatter: (val) => {
                         if (Math.abs(val) >= 1000) {
                             return `R$ ${(val/1000).toFixed(1)}k`
                         }
-                        return `R$ ${val.toFixed(0)}`
+                        return `R$ ${val ? val.toFixed(0) : 0}`
                     }
                 }
             },
             grid: { borderColor: 'rgba(255, 255, 255, 0.1)', strokeDashArray: 5 },
-            tooltip: { theme: 'dark', y: { formatter: (val) => formatCurrency(val) } },
-            fill: { 
-                type: 'gradient', 
-                colors: [ '#8b5cf6' ],
-                gradient: { 
-                    shadeIntensity: 1,
-                    opacityFrom: 0.7, 
-                    opacityTo: 0.1,
-                    stops: [0, 90, 100]
-                }
-            },
-            markers: { size: 0, hover: { size: 5 } }
+            tooltip: { theme: 'dark', x: { formatter: (val) => `Dia ${val}` }, y: { formatter: (val) => formatCurrency(val) } },
+            markers: {
+                size: 6,
+                colors: ['#8b5cf6']
+            }
         };
 
         if (chart) {
@@ -163,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
             chart.render();
         }
     }
-    
+
     // ----------------- MANIPULAÇÃO DE DADOS -----------------
 
     function saveState() {
@@ -176,11 +166,11 @@ document.addEventListener('DOMContentLoaded', () => {
             state = JSON.parse(savedState);
         }
     }
-    
+
     function resetState() {
         if (confirm('Tem certeza que deseja apagar TODOS os dados? Esta ação não pode ser desfeita.')) {
             state = { transactions: [] };
-            saveState(); // Salva o estado vazio
+            saveState();
             render();
             alert('Dashboard resetado com sucesso!');
         }
@@ -195,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
         saveState();
         render();
     }
-    
+
     // ----------------- EVENTOS -----------------
 
     addReceitaBtn.onclick = () => showModal('entrada');
@@ -226,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         hideModal();
     };
-    
+
     exportBtn.onclick = () => {
         if (state.transactions.length === 0) return alert("Não há dados para exportar.");
         const dataStr = JSON.stringify(state, null, 2);
@@ -241,9 +231,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     importBtn.onclick = () => importFile.click();
     importFile.onchange = (event) => {
-        const file = event.target.files[0];
+        const file = event.target.files[[0]];
         if (!file) return;
-        
+
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
@@ -263,13 +253,13 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.readAsText(file);
         importFile.value = '';
     };
-    
+
     // ----------------- INICIALIZAÇÃO -----------------
-    
+
     function formatCurrency(value) {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
     }
-    
+
     loadState();
     render();
 });
