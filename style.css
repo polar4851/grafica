@@ -1,0 +1,180 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+:root {
+    --bg-color: #0d1117;
+    --panel-bg: rgba(22, 27, 34, 0.6);
+    --border-color: rgba(255, 255, 255, 0.15);
+    --text-primary: #c9d1d9;
+    --text-secondary: #8b949e;
+    --accent-receita: #238636;
+    --accent-receita-hover: #2ea043;
+    --accent-despesa: #da3633;
+    --accent-despesa-hover: #f85149;
+    --accent-blue: #58a6ff;
+}
+
+body {
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.1) 1px, transparent 0);
+    background-size: 20px 20px;
+}
+
+.container {
+    padding: 2rem;
+    max-width: 1500px;
+    margin: 0 auto;
+}
+
+.header .title {
+    font-size: 2.5rem;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.main-grid {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 2rem;
+}
+
+.left-column, .right-column {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.glass-panel {
+    background-color: var(--panel-bg);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 1.5rem;
+}
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+.kpi-card h4 {
+    margin: 0 0 0.5rem 0;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.kpi-card p {
+    margin: 0;
+    font-size: 2.2rem;
+    font-weight: 600;
+}
+
+.kpi-card .positive { color: var(--accent-receita); }
+.kpi-card .negative { color: var(--accent-despesa); }
+
+.chart-container { height: 400px; }
+
+#actions-container h3, #transactions-container h3 {
+    margin: 0 0 1rem 0;
+    font-weight: 500;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 1rem;
+}
+
+.action-button {
+    width: 100%;
+    padding: 0.8rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.button-receita { background-color: var(--accent-receita); color: white; }
+.button-receita:hover { background-color: var(--accent-receita-hover); }
+
+.button-despesa { background-color: var(--accent-despesa); color: white; }
+.button-despesa:hover { background-color: var(--accent-despesa-hover); }
+
+.button-secondary { background-color: rgba(255, 255, 255, 0.1); color: var(--text-primary); }
+.button-secondary:hover { background-color: rgba(255, 255, 255, 0.15); }
+
+#actions-container hr {
+    border: none;
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 1rem 0;
+}
+
+#transactions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.transaction-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.transaction-item div p { margin: 0; }
+.transaction-item .description { font-weight: 500; }
+.transaction-item .category { font-size: 0.8rem; color: var(--text-secondary); }
+.transaction-item .amount { font-weight: 600; font-size: 1.1rem; }
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+.modal-content {
+    width: 100%;
+    max-width: 500px;
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+.modal-header h2 { margin: 0; }
+#close-modal-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 2rem;
+    cursor: pointer;
+}
+.input-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1rem;
+}
+.input-group label {
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary);
+}
+.input-group input {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.8rem;
+    color: var(--text-primary);
+    font-size: 1rem;
+}
