@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const exportBtn = document.getElementById('export-btn');
     const importBtn = document.getElementById('import-btn');
     const importFile = document.getElementById('import-file');
-    const resetBtn = document.getElementById('reset-btn'); // Novo botão
+    const resetBtn = document.getElementById('reset-btn');
 
     // ----------------- FUNÇÕES PRINCIPAIS -----------------
 
@@ -75,30 +75,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * LÓGICA DO GRÁFICO CORRIGIDA E MELHORADA
+     * LÓGICA DO GRÁFICO TOTALMENTE REFEITA PARA FUNCIONAMENTO CORRETO
      */
     function renderChart() {
         const { transactions } = state;
         const today = new Date();
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
         const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-        const labels = Array.from({length: daysInMonth}, (_, i) => i + 1);
+        const labels = Array.from({length: daysInMonth}, (_, i) => `Dia ${i + 1}`);
         
-        // 1. Calcula o saldo inicial do mês (saldo de tudo que veio antes)
         const saldoInicialDoMes = transactions
             .filter(t => new Date(t.date) < startOfMonth)
             .reduce((sum, t) => sum + (t.type === 'entrada' ? t.amount : -t.amount), 0);
             
-        // 2. Cria um array com o ganho/perda de cada dia do mês atual
         const dailyNets = Array(daysInMonth).fill(0);
         transactions
-            .filter(t => new Date(t.date).getMonth() === today.getMonth())
+            .filter(t => new Date(t.date).getMonth() === today.getMonth() && new Date(t.date).getFullYear() === today.getFullYear())
             .forEach(t => {
                 const day = new Date(t.date).getDate() - 1;
                 dailyNets[day] += (t.type === 'entrada' ? t.amount : -t.amount);
             });
             
-        // 3. Cria a série de dados acumulada para o gráfico
         const seriesData = [];
         let saldoAcumulado = saldoInicialDoMes;
         for(let i = 0; i < daysInMonth; i++) {
@@ -106,13 +103,44 @@ document.addEventListener('DOMContentLoaded', () => {
             seriesData.push(saldoAcumulado);
         }
 
+        // **INÍCIO DA CORREÇÃO DE ESCALA DO GRÁFICO**
+        let yMin, yMax;
+
+        if (seriesData.length > 0) {
+            const minVal = Math.min(...seriesData);
+            const maxVal = Math.max(...seriesData);
+            const range = maxVal - minVal;
+
+            // Adiciona uma margem de 15% acima e abaixo, ou um valor fixo se a variação for pequena
+            const padding = range * 0.15 || 100; 
+            yMin = minVal - padding;
+            yMax = maxVal + padding;
+        } else {
+            // Valores padrão se não houver dados
+            yMin = 0;
+            yMax = 1000;
+        }
+        // **FIM DA CORREÇÃO DE ESCALA**
+
         const options = {
             series: [{ name: 'Saldo em Caixa', data: seriesData }],
             chart: { type: 'area', height: '100%', toolbar: { show: false }, background: 'transparent' },
             dataLabels: { enabled: false },
-            stroke: { curve: 'smooth', width: 3, colors: [ '#8b5cf6' ]}, // Linha roxa e mais grossa
+            stroke: { curve: 'smooth', width: 3, colors: [ '#8b5cf6' ] },
             xaxis: { categories: labels, labels: { style: { colors: '#8b949e' } }, axisBorder: { show: false }, axisTicks: { show: false } },
-            yaxis: { labels: { style: { colors: '#8b949e' }, formatter: (val) => `R$ ${Math.round(val/1000)}k` } }, // Formato em milhares
+            yaxis: {
+                min: yMin, // Define o mínimo do eixo Y
+                max: yMax, // Define o máximo do eixo Y
+                labels: {
+                    style: { colors: '#8b949e' },
+                    formatter: (val) => {
+                        if (Math.abs(val) >= 1000) {
+                            return `R$ ${(val/1000).toFixed(1)}k`
+                        }
+                        return `R$ ${val.toFixed(0)}`
+                    }
+                }
+            },
             grid: { borderColor: 'rgba(255, 255, 255, 0.1)', strokeDashArray: 5 },
             tooltip: { theme: 'dark', y: { formatter: (val) => formatCurrency(val) } },
             fill: { 
@@ -125,10 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     stops: [0, 90, 100]
                 }
             },
-            markers: {
-                size: 0, // Remove as bolinhas da linha
-                hover: { size: 5 }
-            }
+            markers: { size: 0, hover: { size: 5 } }
         };
 
         if (chart) {
@@ -152,12 +177,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // NOVA FUNÇÃO PARA RESETAR O ESTADO
     function resetState() {
         if (confirm('Tem certeza que deseja apagar TODOS os dados? Esta ação não pode ser desfeita.')) {
-            state = { transactions: [] }; // Limpa o estado
-            localStorage.removeItem('dashboardData'); // Limpa o navegador
-            render(); // Redesenha a tela vazia
+            state = { transactions: [] };
+            saveState(); // Salva o estado vazio
+            render();
             alert('Dashboard resetado com sucesso!');
         }
     }
@@ -177,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
     addReceitaBtn.onclick = () => showModal('entrada');
     addDespesaBtn.onclick = () => showModal('saida');
     closeModalBtn.onclick = () => hideModal();
-    resetBtn.onclick = () => resetState(); // Evento para o novo botão
+    resetBtn.onclick = () => resetState();
 
     function showModal(type) {
         transactionType = type;
@@ -204,6 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     exportBtn.onclick = () => {
+        if (state.transactions.length === 0) return alert("Não há dados para exportar.");
         const dataStr = JSON.stringify(state, null, 2);
         const blob = new Blob([dataStr], {type: "application/json"});
         const url = URL.createObjectURL(blob);
@@ -223,11 +248,13 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.onload = (e) => {
             try {
                 const importedState = JSON.parse(e.target.result);
-                if (importedState.transactions) {
+                if (importedState && Array.isArray(importedState.transactions)) {
                     state = importedState;
                     saveState();
                     render();
                     alert('Dados importados com sucesso!');
+                } else {
+                    alert('Erro: O arquivo JSON não contém uma lista de transações válida.');
                 }
             } catch {
                 alert('Erro: Arquivo JSON inválido.');
