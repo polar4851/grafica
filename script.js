@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     let chart;
-    let transactionType = 'entrada'; // para o formulário
+    let transactionType = 'entrada';
 
     // ----------------- ELEMENTOS DO DOM -----------------
     const kpiContainer = document.getElementById('kpi-container');
@@ -22,21 +22,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const exportBtn = document.getElementById('export-btn');
     const importBtn = document.getElementById('import-btn');
     const importFile = document.getElementById('import-file');
+    const resetBtn = document.getElementById('reset-btn'); // Novo botão
 
     // ----------------- FUNÇÕES PRINCIPAIS -----------------
 
-    /**
-     * Função central que redesenha toda a UI com base no estado atual.
-     */
     function render() {
         renderKPIs();
         renderTransactionList();
         renderChart();
     }
 
-    /**
-     * Calcula e exibe os 4 indicadores principais (KPIs).
-     */
     function renderKPIs() {
         const { transactions } = state;
         const monthlyTx = transactions.filter(t => new Date(t.date).getMonth() === new Date().getMonth());
@@ -54,9 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
-    /**
-     * Exibe a lista das últimas 5 transações.
-     */
     function renderTransactionList() {
         transactionsList.innerHTML = '';
         const recentTransactions = [...state.transactions].reverse().slice(0, 5);
@@ -83,36 +75,60 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Desenha ou atualiza o gráfico de linha do fluxo de caixa.
+     * LÓGICA DO GRÁFICO CORRIGIDA E MELHORADA
      */
     function renderChart() {
         const { transactions } = state;
-        const monthlyTx = transactions.filter(t => new Date(t.date).getMonth() === new Date().getMonth());
-
-        const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+        const today = new Date();
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
         const labels = Array.from({length: daysInMonth}, (_, i) => i + 1);
-        const seriesData = Array(daysInMonth).fill(0);
         
-        monthlyTx.forEach(t => {
-            const day = new Date(t.date).getDate() - 1;
-            seriesData[day] += (t.type === 'entrada' ? t.amount : -t.amount);
-        });
-        
-        // Acumula os valores para o gráfico de fluxo
-        for (let i = 1; i < seriesData.length; i++) {
-            seriesData[i] += seriesData[i - 1];
+        // 1. Calcula o saldo inicial do mês (saldo de tudo que veio antes)
+        const saldoInicialDoMes = transactions
+            .filter(t => new Date(t.date) < startOfMonth)
+            .reduce((sum, t) => sum + (t.type === 'entrada' ? t.amount : -t.amount), 0);
+            
+        // 2. Cria um array com o ganho/perda de cada dia do mês atual
+        const dailyNets = Array(daysInMonth).fill(0);
+        transactions
+            .filter(t => new Date(t.date).getMonth() === today.getMonth())
+            .forEach(t => {
+                const day = new Date(t.date).getDate() - 1;
+                dailyNets[day] += (t.type === 'entrada' ? t.amount : -t.amount);
+            });
+            
+        // 3. Cria a série de dados acumulada para o gráfico
+        const seriesData = [];
+        let saldoAcumulado = saldoInicialDoMes;
+        for(let i = 0; i < daysInMonth; i++) {
+            saldoAcumulado += dailyNets[i];
+            seriesData.push(saldoAcumulado);
         }
 
         const options = {
-            series: [{ name: 'Fluxo de Caixa', data: seriesData }],
+            series: [{ name: 'Saldo em Caixa', data: seriesData }],
             chart: { type: 'area', height: '100%', toolbar: { show: false }, background: 'transparent' },
             dataLabels: { enabled: false },
-            stroke: { curve: 'smooth', width: 2 },
-            xaxis: { categories: labels, labels: { style: { colors: '#8b949e' } } },
-            yaxis: { labels: { style: { colors: '#8b949e' }, formatter: (val) => `R$ ${val.toFixed(0)}` } },
-            grid: { borderColor: 'rgba(255, 255, 255, 0.1)' },
+            stroke: { curve: 'smooth', width: 3, colors: [ '#8b5cf6' ]}, // Linha roxa e mais grossa
+            xaxis: { categories: labels, labels: { style: { colors: '#8b949e' } }, axisBorder: { show: false }, axisTicks: { show: false } },
+            yaxis: { labels: { style: { colors: '#8b949e' }, formatter: (val) => `R$ ${Math.round(val/1000)}k` } }, // Formato em milhares
+            grid: { borderColor: 'rgba(255, 255, 255, 0.1)', strokeDashArray: 5 },
             tooltip: { theme: 'dark', y: { formatter: (val) => formatCurrency(val) } },
-            fill: { type: 'gradient', gradient: { opacityFrom: 0.6, opacityTo: 0.05 } }
+            fill: { 
+                type: 'gradient', 
+                colors: [ '#8b5cf6' ],
+                gradient: { 
+                    shadeIntensity: 1,
+                    opacityFrom: 0.7, 
+                    opacityTo: 0.1,
+                    stops: [0, 90, 100]
+                }
+            },
+            markers: {
+                size: 0, // Remove as bolinhas da linha
+                hover: { size: 5 }
+            }
         };
 
         if (chart) {
@@ -135,6 +151,16 @@ document.addEventListener('DOMContentLoaded', () => {
             state = JSON.parse(savedState);
         }
     }
+    
+    // NOVA FUNÇÃO PARA RESETAR O ESTADO
+    function resetState() {
+        if (confirm('Tem certeza que deseja apagar TODOS os dados? Esta ação não pode ser desfeita.')) {
+            state = { transactions: [] }; // Limpa o estado
+            localStorage.removeItem('dashboardData'); // Limpa o navegador
+            render(); // Redesenha a tela vazia
+            alert('Dashboard resetado com sucesso!');
+        }
+    }
 
     function addTransaction(data) {
         state.transactions.push({
@@ -151,6 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
     addReceitaBtn.onclick = () => showModal('entrada');
     addDespesaBtn.onclick = () => showModal('saida');
     closeModalBtn.onclick = () => hideModal();
+    resetBtn.onclick = () => resetState(); // Evento para o novo botão
 
     function showModal(type) {
         transactionType = type;
@@ -207,15 +234,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
         reader.readAsText(file);
-        importFile.value = ''; // Limpa para poder importar o mesmo arquivo novamente
+        importFile.value = '';
     };
     
     // ----------------- INICIALIZAÇÃO -----------------
     
     function formatCurrency(value) {
-        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
     }
     
-    loadState(); // Carrega os dados salvos
-    render(); // Desenha a tela inicial
+    loadState();
+    render();
 });
